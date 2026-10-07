@@ -2,7 +2,7 @@
     'use strict';
 
     // =========================================================
-    // 1. MASSIVE CSS SHIELD
+    // 1. CSS SHIELD
     // =========================================================
     const style = document.createElement('style');
     style.textContent = `
@@ -23,7 +23,6 @@
         ytmusic-ad-bar,
         ytmusic-mealbar-promo-renderer,
         ytmusic-statement-banner-renderer,
-        .ytd-video-masthead-ad-v3-renderer,
         .ytp-ad-module,
         .ytp-ad-overlay-container,
         .ytp-ad-overlay-slot,
@@ -33,7 +32,6 @@
         .ytp-ad-text-overlay,
         .ytp-ad-image-overlay,
         .ytp-ad-survey,
-        .ytp-ad-survey-questions,
         .ytp-ad-progress,
         .ytp-ad-progress-list,
         .ytp-ad-button,
@@ -52,43 +50,27 @@
         .ytp-ad-overlay-close-container,
         .ytp-featured-product,
         .ytp-suggested-action,
-        .ytp-ce-element,
         .ytp-cards-teaser,
         .ytp-cards-button,
         .ytp-pause-overlay,
-        .ytp-suggestion-set,
-        .ytp-shorts-bar,
-        .ytp-shorts-title-channel,
         .ytp-shopping-button,
         .ytp-shopping-product-overlay,
+        .ytp-ad-badge,
+        .ytp-ad-badge-text,
+        .ytp-ad-badge-icon,
+        .video-ads,
+        .ytp-ad-image,
+        .ytp-ad-video,
         tp-yt-iron-overlay-backdrop,
         tp-yt-paper-dialog.ytd-enforcement-message-view-model,
         #player-ads,
         #panels-full-bleed-container,
-        #related > ytd-watch-next-secondary-results-renderer > #items > ytd-compact-promoted-video-renderer,
         #merchandise-shelf,
         #clarify-box,
-        #masthead-ad,
         #offer-module,
         #shopping-button,
-        .ytd-companion-slot-renderer,
-        .ytd-action-companion-ad-renderer,
-        .ytd-player-legacy-desktop-watch-ads-renderer,
-        .ytd-in-feed-ad-layout-renderer,
-        .ytd-ad-slot-renderer,
-        .ytd-display-ad-renderer,
-        .ytd-promoted-sparkles-web-renderer,
-        .ytd-promoted-video-renderer,
-        .ytd-compact-promoted-video-renderer,
-        .ytd-banner-promo-renderer,
-        .ytd-statement-banner-renderer,
-        .ytd-brand-video-shelf-renderer,
-        .ytd-primetime-promo-renderer,
-        .ytd-enforcement-message-view-model,
-        .ytmusic-ad-bar,
-        .ytmusic-mealbar-promo-renderer,
-        .ytmusic-statement-banner-renderer,
-        ytd-ad-slot-renderer,
+        ytd-companion-slot-renderer,
+        ytd-action-companion-ad-renderer,
         ytd-rich-item-renderer:has(ytd-ad-slot-renderer),
         ytd-rich-section-renderer:has(ytd-statement-banner-renderer),
         ytd-item-section-renderer:has(ytd-ad-slot-renderer) {
@@ -105,171 +87,204 @@
     (document.head || document.documentElement).appendChild(style);
 
     // =========================================================
-    // 2. PAUSE DETECTION LOGIC
+    // 2. USER PAUSE TRACKING
     // =========================================================
     let userPaused = false;
-    let userPausedAt = 0;
-
-    function markUserPause() {
-        userPaused = true;
-        userPausedAt = Date.now();
-    }
-
-    function markUserPlay() {
-        userPaused = false;
-    }
 
     window.addEventListener('keydown', function (e) {
         if (e.code === 'Space' || e.code === 'KeyK') {
-            if (userPaused) markUserPlay();
-            else markUserPause();
+            userPaused = !userPaused;
         }
     }, true);
 
     window.addEventListener('mousedown', function (e) {
-        const playBtn = e.target.closest(
-            '.ytp-play-button, .play-pause-button, .ytp-play-button-playlist'
-        );
-        if (playBtn) {
-            if (userPaused) markUserPlay();
-            else markUserPause();
+        if (e.target.closest('.ytp-play-button, .play-pause-button, .ytp-play-button-playlist')) {
+            userPaused = !userPaused;
         }
     }, true);
 
     window.addEventListener('touchstart', function (e) {
-        const playBtn = e.target.closest(
-            '.ytp-play-button, .play-pause-button, .ytp-play-button-playlist'
-        );
-        if (playBtn) {
-            if (userPaused) markUserPlay();
-            else markUserPause();
+        if (e.target.closest('.ytp-play-button, .play-pause-button, .ytp-play-button-playlist')) {
+            userPaused = !userPaused;
         }
     }, true);
 
     // =========================================================
-    // 3. INSTANT-REACTION LOOP (ULTRA FAST — 20ms)
+    // 3. AD-SKIP LOGIC
+    //    - Runs fast when ad detected
+    //    - Does NOT touch anything when no ad is present
     // =========================================================
-    function instantFix() {
+    let lastAdState = false;
+
+    function handleAd() {
+        const player = document.getElementById('movie_player') ||
+                       document.querySelector('ytmusic-player') ||
+                       document.querySelector('.html5-video-player');
         const video = document.querySelector('video');
-        const player =
-            document.querySelector('#movie_player') ||
-            document.querySelector('ytmusic-player') ||
-            document.querySelector('.html5-video-player');
+        if (!player || !video) return;
 
-        if (!video) return;
-
-        if (!video._adBlockListenersAttached) {
-            video._adBlockListenersAttached = true;
-            video.addEventListener('emptied', function () {
-                userPaused = false;
-                userPausedAt = 0;
-            }, { once: true });
-            video.addEventListener('play', function () {
-                if (Date.now() - userPausedAt > 1500) {
-                    userPaused = false;
-                }
-            });
-        }
-
-        // Remove anti-adblock popups
+        // ---------- Anti-adblock popup removal (always safe) ----------
         const popup = document.querySelector('ytd-enforcement-message-view-model');
         if (popup) {
             popup.remove();
-            document.querySelectorAll('tp-yt-iron-overlay-backdrop').forEach(function (b) {
-                b.remove();
-            });
+            document.querySelectorAll('tp-yt-iron-overlay-backdrop').forEach(function (b) { b.remove(); });
             document.querySelectorAll('tp-yt-paper-dialog').forEach(function (d) {
                 if (d.querySelector('ytd-enforcement-message-view-model')) d.remove();
             });
-            try { video.play(); } catch (e) {}
+            if (!userPaused) {
+                const p = video.play();
+                if (p && p.catch) p.catch(function () {});
+            }
         }
 
-        // Detect ad state
+        // ---------- Ad detection ----------
         const isAd =
-            player &&
-            (player.classList.contains('ad-showing') ||
-                player.classList.contains('ad-interrupting'));
+            player.classList.contains('ad-showing') ||
+            player.classList.contains('ad-interrupting');
 
         if (isAd) {
-            video.muted = true;
-            video.playbackRate = 16;
-            if (isFinite(video.duration) && video.duration > 0) {
-                try { video.currentTime = video.duration - 0.1; } catch (e) {}
-            }
-            if (isFinite(video.duration) && video.duration > 0 && video.currentTime < video.duration - 1) {
-                try { video.currentTime = video.duration - 0.1; } catch (e) {}
+            lastAdState = true;
+
+            // Mute + speed up
+            if (!video.muted) video.muted = true;
+            try {
+                if (video.playbackRate < 16) video.playbackRate = 16;
+            } catch (e) {}
+
+            // Jump to end of ad
+            try {
+                const dur = video.duration;
+                if (dur && isFinite(dur) && dur > 0.3 && video.currentTime < dur - 0.05) {
+                    video.currentTime = dur - 0.05;
+                }
+            } catch (e) {}
+
+            // Ensure playing
+            if (video.paused) {
+                const p = video.play();
+                if (p && p.catch) p.catch(function () {});
             }
 
-            const skipBtn = document.querySelector(
+            // Click skip buttons
+            const skips = document.querySelectorAll(
                 '.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-skip-ad-button'
             );
-            if (skipBtn) {
-                try { skipBtn.click(); } catch (e) {}
+            for (let i = 0; i < skips.length; i++) {
+                try { skips[i].click(); } catch (e) {}
             }
 
-            const overlayClose = document.querySelector('.ytp-ad-overlay-close-button');
-            if (overlayClose) {
-                try { overlayClose.click(); } catch (e) {}
+            // Close overlay
+            const close = document.querySelector('.ytp-ad-overlay-close-button');
+            if (close) {
+                try { close.click(); } catch (e) {}
             }
-
-            // Force play main video if ad ended
-            if (!video.paused && video.currentTime >= video.duration - 0.5) {
-                try { video.currentTime = 0; video.play(); } catch (e) {}
-            }
-        }
-
-        // Force play if not user-paused and stuck
-        if (!userPaused && video.paused && video.readyState >= 2 && !video.ended) {
-            const isAdState = player && player.classList.contains('ad-showing');
-            if (isAdState || video.currentTime < 1) {
-                video.play().catch(function () {});
-            }
-        }
-
-        // Restore muted state after ad
-        if (!isAd && video.muted && !userPaused) {
-            video.muted = false;
-        }
-        if (!isAd && video.playbackRate > 2) {
-            video.playbackRate = 1;
-        }
-    }
-
-    // 20ms loop = ultra instant reaction
-    setInterval(instantFix, 20);
-
-    // Also react to navigation
-    window.addEventListener('yt-navigate-finish', function () {
-        userPaused = false;
-        userPausedAt = 0;
-        instantFix();
-    }, true);
-
-    window.addEventListener('yt-page-data-updated', instantFix, true);
-
-    // =========================================================
-    // 4. MUTATION OBSERVER — instant reaction on DOM changes
-    // =========================================================
-    const observer = new MutationObserver(function (mutations) {
-        for (const mutation of mutations) {
-            for (const node of mutation.addedNodes) {
-                if (node.nodeType === 1) {
-                    if (
-                        node.classList &&
-                        (node.classList.contains('ad-showing') ||
-                            node.classList.contains('ytp-ad-module') ||
-                            node.classList.contains('ytp-ad-skip-button'))
-                    ) {
-                        instantFix();
-                        return;
-                    }
+        } else {
+            // ---------- Restore only if a real ad just ended ----------
+            if (lastAdState) {
+                lastAdState = false;
+                try { video.playbackRate = 1; } catch (e) {}
+                if (video.muted && !userPaused) video.muted = false;
+                if (!userPaused && video.paused && !video.ended && video.readyState >= 2) {
+                    const p = video.play();
+                    if (p && p.catch) p.catch(function () {});
                 }
             }
         }
-    });
+    }
 
-    observer.observe(document.documentElement, {
-        childList: true,
-        subtree: true
+    // =========================================================
+    // 4. FAST AD-KILL LOOP (only while ad is showing)
+    // =========================================================
+    let fastTimer = null;
+
+    function startFastLoop() {
+        if (fastTimer) return;
+        fastTimer = setInterval(function () {
+            const player = document.getElementById('movie_player') ||
+                           document.querySelector('ytmusic-player') ||
+                           document.querySelector('.html5-video-player');
+            if (!player || !(player.classList.contains('ad-showing') ||
+                             player.classList.contains('ad-interrupting'))) {
+                clearInterval(fastTimer);
+                fastTimer = null;
+                handleAd();
+                return;
+            }
+            handleAd();
+        }, 25);
+    }
+
+    // Slow background scan
+    setInterval(function () {
+        handleAd();
+        const player = document.getElementById('movie_player') ||
+                       document.querySelector('ytmusic-player') ||
+                       document.querySelector('.html5-video-player');
+        if (player && (player.classList.contains('ad-showing') ||
+                       player.classList.contains('ad-interrupting'))) {
+            startFastLoop();
+        }
+    }, 100);
+
+    // =========================================================
+    // 5. OBSERVER on player class — instant reaction
+    // =========================================================
+    function attachPlayerObserver() {
+        const player = document.getElementById('movie_player') ||
+                       document.querySelector('ytmusic-player') ||
+                       document.querySelector('.html5-video-player');
+        if (player && !player._abObs) {
+            player._abObs = true;
+            new MutationObserver(function () {
+                handleAd();
+                if (player.classList.contains('ad-showing') ||
+                    player.classList.contains('ad-interrupting')) {
+                    startFastLoop();
+                }
+            }).observe(player, {
+                attributes: true,
+                attributeFilter: ['class']
+            });
+        }
+    }
+
+    // =========================================================
+    // 6. VIDEO EVENT LISTENERS
+    // =========================================================
+    function attachVideoListeners(video) {
+        if (!video || video._abVideoHooked) return;
+        video._abVideoHooked = true;
+        video.addEventListener('play', handleAd, true);
+        video.addEventListener('playing', handleAd, true);
+        video.addEventListener('pause', handleAd, true);
+        video.addEventListener('loadedmetadata', handleAd, true);
+        video.addEventListener('durationchange', handleAd, true);
+    }
+
+    const domObs = new MutationObserver(function () {
+        attachPlayerObserver();
+        attachVideoListeners(document.querySelector('video'));
     });
+    domObs.observe(document.documentElement, { childList: true, subtree: true });
+
+    setInterval(function () {
+        attachPlayerObserver();
+        attachVideoListeners(document.querySelector('video'));
+    }, 500);
+
+    // =========================================================
+    // 7. NAVIGATION RESET
+    // =========================================================
+    window.addEventListener('yt-navigate-start', function () {
+        userPaused = false;
+        lastAdState = false;
+    }, true);
+
+    window.addEventListener('yt-navigate-finish', function () {
+        userPaused = false;
+        lastAdState = false;
+        setTimeout(handleAd, 100);
+    }, true);
+
+    console.log('[PRO-BLOCKER] Content v13 loaded.');
 })();

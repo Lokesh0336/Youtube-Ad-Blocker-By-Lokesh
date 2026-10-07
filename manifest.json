@@ -1,14 +1,11 @@
 {
   "manifest_version": 3,
   "name": "YouTube Adblocker By Lokesh.R",
-  "version": "9.0.0",
-  "description": "Blocks YouTube & YouTube Music ads and starts videos instantly.",
+  "version": "11.0.0",
+  "description": "Instant-play YouTube & YT Music adblocker with smooth video transitions.",
   "minimum_chrome_version": "111",
 
-  "permissions": [
-    "declarativeNetRequest",
-    "scripting"
-  ],
+  "permissions": ["declarativeNetRequest"],
 
   "host_permissions": [
     "https://www.youtube.com/*",
@@ -16,16 +13,13 @@
     "https://*.doubleclick.net/*",
     "https://*.googlesyndication.com/*",
     "https://*.googleadservices.com/*",
-    "https://*.google.com/*"
+    "https://*.google.com/*",
+    "https://*.googlevideo.com/*"
   ],
 
   "declarative_net_request": {
     "rule_resources": [
-      {
-        "id": "ad_rules",
-        "enabled": true,
-        "path": "rules.json"
-      }
+      { "id": "ad_rules", "enabled": true, "path": "rules.json" }
     ]
   },
 

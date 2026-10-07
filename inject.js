@@ -1,69 +1,39 @@
 (function () {
     'use strict';
 
-    const LOG_PREFIX = '[PRO-BLOCKER]';
-
     // =========================================================
-    // 1. JSON.parse INTERCEPTOR — strip all ad data
+    // Ad key list — everything YouTube uses to schedule ads
     // =========================================================
     const AD_KEYS = [
-        'adPlacements',
-        'playerAds',
-        'adSlots',
-        'adFlags',
-        'adsConfig',
-        'adBreakHeartbeatParams',
-        'adBreakServiceRenderer',
-        'adOnesieRenderer',
-        'adParams',
-        'adSafetyReason',
-        'adThumbnail',
-        'adTracking',
-        'adVideos',
-        'displayAd',
-        'instreamAd',
-        'midrollAd',
-        'prerollAd',
-        'postrollAd',
-        'adBreakParams',
-        'adBreakService',
-        'playerAdParams',
-        'ad3ModuleConfig',
-        'adClientParams',
-        'adDeviceParams',
-        'adFormats',
-        'adLayouts'
+        'adPlacements', 'playerAds', 'adSlots', 'adFlags', 'adsConfig',
+        'adBreakHeartbeatParams', 'adBreakServiceRenderer', 'adOnesieRenderer',
+        'adParams', 'adSafetyReason', 'adThumbnail', 'adTracking', 'adVideos',
+        'displayAd', 'instreamAd', 'midrollAd', 'prerollAd', 'postrollAd',
+        'adBreakParams', 'adBreakService', 'playerAdParams', 'ad3ModuleConfig',
+        'adClientParams', 'adDeviceParams', 'adFormats', 'adLayouts',
+        'adBreakRenderer', 'adSlotLoggingData', 'serverSideAdConfig'
     ];
 
     function cleanObject(obj) {
         if (!obj || typeof obj !== 'object') return obj;
-
         if (Array.isArray(obj)) {
-            for (let i = 0; i < obj.length; i++) {
-                obj[i] = cleanObject(obj[i]);
-            }
+            for (let i = 0; i < obj.length; i++) obj[i] = cleanObject(obj[i]);
             return obj;
         }
-
-        for (const key of AD_KEYS) {
+        for (let i = 0; i < AD_KEYS.length; i++) {
+            const key = AD_KEYS[i];
             if (key in obj) {
-                if (key === 'adFlags' || key === 'adParams') {
-                    obj[key] = 0;
-                } else if (Array.isArray(obj[key])) {
-                    obj[key] = [];
-                } else if (typeof obj[key] === 'object' && obj[key] !== null) {
-                    obj[key] = {};
-                } else {
-                    obj[key] = null;
-                }
+                const val = obj[key];
+                if (key === 'adFlags' || key === 'adParams') obj[key] = 0;
+                else if (Array.isArray(val)) obj[key] = [];
+                else if (typeof val === 'object' && val !== null) obj[key] = {};
+                else obj[key] = null;
             }
         }
-
         if (obj.playerConfig) {
             obj.playerConfig.adSelectionConfig = {};
             if (obj.playerConfig.adConfig) obj.playerConfig.adConfig = {};
         }
-
         if (obj.playbackContext) {
             if (obj.playbackContext.contentPlaybackContext) {
                 obj.playbackContext.contentPlaybackContext = {
@@ -75,208 +45,168 @@
                 delete obj.playbackContext.adPlaybackContext;
             }
         }
-
         if (obj.streamingData && obj.streamingData.adPlacements) {
             obj.streamingData.adPlacements = [];
         }
-
-        if (obj.responseContext) {
-            if (obj.responseContext.adParams) delete obj.responseContext.adParams;
+        if (obj.responseContext && obj.responseContext.adParams) {
+            delete obj.responseContext.adParams;
         }
-
         for (const key in obj) {
             if (typeof obj[key] === 'object' && obj[key] !== null) {
                 obj[key] = cleanObject(obj[key]);
             }
         }
-
         return obj;
     }
 
+    // =========================================================
+    // 1. HOOK ytInitialPlayerResponse (setter + getter)
+    // =========================================================
+    let _playerResponse;
+    try {
+        Object.defineProperty(window, 'ytInitialPlayerResponse', {
+            configurable: true,
+            get: function () { return _playerResponse; },
+            set: function (v) { _playerResponse = cleanObject(v); }
+        });
+    } catch (e) {}
+
+    let _initialData;
+    try {
+        Object.defineProperty(window, 'ytInitialData', {
+            configurable: true,
+            get: function () { return _initialData; },
+            set: function (v) { _initialData = cleanObject(v); }
+        });
+    } catch (e) {}
+
+    // =========================================================
+    // 2. HOOK JSON.parse
+    // =========================================================
     const nativeParse = JSON.parse;
     JSON.parse = function () {
         const result = nativeParse.apply(this, arguments);
-        try {
-            return cleanObject(result);
-        } catch (e) {
-            return result;
-        }
+        try { return cleanObject(result); } catch (e) { return result; }
     };
 
     // =========================================================
-    // 2. FETCH INTERCEPTOR — strip ads from player API
+    // 3. HOOK fetch — preserve original response properties
     // =========================================================
     const nativeFetch = window.fetch;
     window.fetch = async function (...args) {
         const response = await nativeFetch.apply(this, args);
-
         try {
-            const url = typeof args[0] === 'string' ? args[0] : (args[0] && args[0].url) || '';
-
-            if (
-                url.includes('/youtubei/v1/player') ||
-                url.includes('/youtubei/v1/next') ||
-                url.includes('/youtubei/v1/browse') ||
-                url.includes('/youtubei/v1/search')
-            ) {
+            const url = typeof args[0] === 'string'
+                ? args[0]
+                : (args[0] && args[0].url) || '';
+            if (url.indexOf('/youtubei/v1/player') !== -1 ||
+                url.indexOf('/youtubei/v1/next') !== -1 ||
+                url.indexOf('/youtubei/v1/browse') !== -1 ||
+                url.indexOf('/youtubei/v1/search') !== -1 ||
+                url.indexOf('/youtubei/v1/reel') !== -1) {
                 const clone = response.clone();
                 const text = await clone.text();
                 let json;
-                try {
-                    json = nativeParse(text);
-                } catch (e) {
-                    return response;
-                }
+                try { json = nativeParse(text); } catch (e) { return response; }
                 const cleaned = cleanObject(json);
-                return new Response(JSON.stringify(cleaned), {
+                const newResponse = new Response(JSON.stringify(cleaned), {
                     status: response.status,
                     statusText: response.statusText,
                     headers: response.headers
                 });
+                // Preserve important properties
+                try {
+                    Object.defineProperty(newResponse, 'url', { value: response.url });
+                    Object.defineProperty(newResponse, 'redirected', { value: response.redirected });
+                    Object.defineProperty(newResponse, 'type', { value: response.type });
+                } catch (e) {}
+                return newResponse;
             }
-        } catch (e) {
-            // ignore
-        }
-
+        } catch (e) {}
         return response;
     };
 
     // =========================================================
-    // 3. XHR INTERCEPTOR — strip ads from XMLHttpRequest
+    // 4. HOOK XMLHttpRequest
     // =========================================================
     const nativeOpen = XMLHttpRequest.prototype.open;
     const nativeSend = XMLHttpRequest.prototype.send;
 
-    XMLHttpRequest.prototype.open = function (method, url, ...rest) {
-        this._url = url;
-        return nativeOpen.call(this, method, url, ...rest);
+    XMLHttpRequest.prototype.open = function (method, url) {
+        this._abUrl = url;
+        return nativeOpen.apply(this, arguments);
     };
 
-    XMLHttpRequest.prototype.send = function (...args) {
-        if (this._url && (
-            this._url.includes('/youtubei/v1/player') ||
-            this._url.includes('/youtubei/v1/next') ||
-            this._url.includes('/youtubei/v1/browse')
-        )) {
-            this.addEventListener('readystatechange', function () {
-                if (this.readyState === 4) {
+    XMLHttpRequest.prototype.send = function () {
+        const self = this;
+        const url = self._abUrl || '';
+        if (url.indexOf('/youtubei/v1/player') !== -1 ||
+            url.indexOf('/youtubei/v1/next') !== -1 ||
+            url.indexOf('/youtubei/v1/browse') !== -1 ||
+            url.indexOf('/youtubei/v1/search') !== -1) {
+            self.addEventListener('readystatechange', function () {
+                if (self.readyState === 4) {
                     try {
-                        const data = nativeParse(this.responseText);
-                        const cleaned = cleanObject(data);
-                        Object.defineProperty(this, 'responseText', {
-                            value: JSON.stringify(cleaned),
-                            writable: false
+                        const cleaned = cleanObject(nativeParse(self.responseText));
+                        const str = JSON.stringify(cleaned);
+                        Object.defineProperty(self, 'responseText', {
+                            value: str, writable: false, configurable: true
                         });
-                        Object.defineProperty(this, 'response', {
-                            value: JSON.stringify(cleaned),
-                            writable: false
+                        Object.defineProperty(self, 'response', {
+                            value: str, writable: false, configurable: true
                         });
-                    } catch (e) {
-                        // ignore
-                    }
+                    } catch (e) {}
                 }
             });
         }
-        return nativeSend.apply(this, args);
+        return nativeSend.apply(this, arguments);
     };
 
     // =========================================================
-    // 4. PLAYER STATE ENFORCEMENT — kill stalls, force play
+    // 5. DISABLE ad modules on the player
     // =========================================================
-    function forceInstantPlay() {
-        const player =
-            document.querySelector('#movie_player') ||
-            document.querySelector('ytmusic-player') ||
-            document.querySelector('.html5-video-player');
-
-        if (!player) return;
-
-        try {
-            if (player.getPlayerState && player.getPlayerState() === 3) {
-                player.playVideo();
-            }
-
-            if (player.getConfig) {
-                const cfg = player.getConfig();
-                if (cfg && cfg.args) {
-                    cfg.args.ad_flags = 0;
-                    cfg.args.ad3_module = 0;
-                    cfg.args.vss_host = '';
-                }
-            }
-        } catch (e) {
-            // ignore
-        }
-    }
-
-    setInterval(forceInstantPlay, 50);
-    window.addEventListener('yt-navigate-finish', forceInstantPlay, true);
-    window.addEventListener('yt-page-data-updated', forceInstantPlay, true);
-
-    // =========================================================
-    // 5. YOUTUBE PLAYER API HOOK — remove ad modules
-    // =========================================================
-    function hookPlayerAPI() {
-        const player = document.querySelector('#movie_player');
-        if (!player || player._adBlockHooked) return;
-        player._adBlockHooked = true;
+    function hookPlayer() {
+        const player = document.getElementById('movie_player') ||
+                       document.querySelector('ytmusic-player') ||
+                       document.querySelector('.html5-video-player');
+        if (!player || player._abHooked) return;
+        player._abHooked = true;
 
         try {
             const origLoad = player.loadModule;
             if (origLoad) {
                 player.loadModule = function (name) {
-                    if (name === 'ad' || name === 'ads' || name === 'ad3') return;
+                    if (name === 'ad' || name === 'ads' || name === 'ad3' ||
+                        name === 'adsense' || name === 'advertising') return;
                     return origLoad.apply(this, arguments);
                 };
             }
+        } catch (e) {}
 
-            const origAddEventListener = player.addEventListener;
+        try {
+            const origAdd = player.addEventListener;
             player.addEventListener = function (type, listener, options) {
-                if (type === 'onAdStart' || type === 'onAdEnd' || type === 'onAdStateChange') {
-                    return;
-                }
-                return origAddEventListener.apply(this, arguments);
+                if (type === 'onAdStart' || type === 'onAdEnd' ||
+                    type === 'onAdStateChange' || type === 'onAdProgress') return;
+                return origAdd.apply(this, arguments);
             };
-        } catch (e) {
-            // ignore
-        }
+        } catch (e) {}
+
+        try {
+            if (player.getConfig) {
+                const cfg = player.getConfig();
+                if (cfg && cfg.args) {
+                    cfg.args.ad_flags = 0;
+                    cfg.args.ad3_module = 0;
+                    cfg.args.ad_config = '';
+                    cfg.args.vss_host = '';
+                }
+            }
+        } catch (e) {}
     }
 
-    setInterval(hookPlayerAPI, 100);
-    window.addEventListener('yt-navigate-finish', hookPlayerAPI, true);
+    setInterval(hookPlayer, 500);
+    window.addEventListener('yt-navigate-finish', hookPlayer, true);
 
-    // =========================================================
-    // 6. FORCE SKIP INSTANTLY — patch the ad skip button
-    // =========================================================
-    function forceSkipAd() {
-        const player = document.querySelector('#movie_player');
-        if (!player) return;
-
-        const isAd =
-            player.classList.contains('ad-showing') ||
-            player.classList.contains('ad-interrupting');
-
-        if (isAd) {
-            const video = document.querySelector('video');
-            if (video) {
-                try {
-                    if (video.duration && isFinite(video.duration)) {
-                        video.currentTime = video.duration;
-                    }
-                    video.playbackRate = 16;
-                    video.muted = true;
-                    video.play();
-                } catch (e) {}
-            }
-            const skipBtn = document.querySelector('.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-skip-ad-button');
-            if (skipBtn) {
-                try { skipBtn.click(); } catch (e) {}
-            }
-        }
-    }
-
-    setInterval(forceSkipAd, 20);
-    window.addEventListener('yt-navigate-finish', forceSkipAd, true);
-
-    console.log(`${LOG_PREFIX} Engine v9 loaded — instant-play mode active.`);
+    console.log('[PRO-BLOCKER] Inject v13 loaded.');
 })();
