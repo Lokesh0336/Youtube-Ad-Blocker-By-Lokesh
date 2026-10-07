@@ -1,16 +1,31 @@
+<!--
+  ============================================================
+   YouTube Adblocker By Lokesh.R
+   Author : Lokesh.R
+   GitHub : https://github.com/Lokesh0336
+   © 2026 Lokesh.R — All Rights Reserved
+  ============================================================
+-->
+
 # YouTube Adblocker By Lokesh.R
 
-A high-performance Chrome extension that blocks **all ads** on YouTube and YouTube Music while ensuring videos start playing **instantly** — no ad delays, no buffering stalls, and no anti-adblock popups.
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
+![Version](https://img.shields.io/badge/version-13.0.0-blue.svg)
+![Chrome](https://img.shields.io/badge/Chrome-111%2B-green.svg)
+![Manifest](https://img.shields.io/badge/Manifest-V3-orange.svg)
+
+A high-performance Chrome extension that blocks **all ads** on YouTube and YouTube Music while ensuring videos start playing **instantly** — with smooth transitions and no anti-adblock popups.
 
 ---
 
 ## Features
 
-- **Instant Video Playback** — Videos start immediately with zero ad delay
-- **Complete Ad Removal** — Blocks video ads, banner ads, overlay ads, sponsored cards, and merchandise shelves
-- **YouTube Music Support** — Also blocks ads on `music.youtube.com`
-- **Anti-Adblock Bypass** — Automatically removes YouTube's "Ad blockers violate YouTube's Terms of Service" popup
-- **User Pause Respect** — Smart detection distinguishes user pauses from auto-pauses
+- **Instant Video Playback** — No ad delays, no buffering stalls
+- **Complete Ad Removal** — Video ads, banner ads, overlay ads, sponsored cards, merchandise shelves
+- **YouTube Music Support** — Blocks ads on `music.youtube.com`
+- **Anti-Adblock Bypass** — Removes YouTube's "Ad blockers violate Terms of Service" popup
+- **Smooth Video Transitions** — No black screen between videos
+- **User Pause Respect** — Auto-resume works only when you didn't pause manually
 - **Three-Layer Defense** — Network blocking + Data interception + DOM control
 
 ---
@@ -28,22 +43,22 @@ Blocks requests to known ad servers before they leave your browser:
 
 ### Layer 2 — Data Interception (`inject.js`)
 Runs in YouTube's MAIN world and intercepts:
-- `JSON.parse` — strips ad keys from all parsed responses
+- `JSON.parse` — strips ad keys from parsed responses
 - `fetch` and `XMLHttpRequest` — cleans ad data from `/youtubei/v1/player` API
 - Player internals — disables ad modules (`ad`, `ads`, `ad3`)
 
 ### Layer 3 — DOM & Player Control (`content.js`)
 - **CSS Shield** — Hides 100+ ad-related selectors instantly
-- **20ms Reaction Loop** — Constantly checks for ads and skips them
+- **Ad-Kill Loop** — Runs fast only while an ad is active
 - **Auto-Click Skip** — Clicks skip buttons the moment they appear
-- **MutationObserver** — Reacts instantly to DOM changes
+- **MutationObserver** — Reacts instantly to player state changes
 
 ---
 
 ## Installation
 
-### Method 1 — Load Unpacked (Developer Mode)
+### Load Unpacked (Developer Mode)
 
-1. **Download** or clone this repository:
+1. **Clone** this repository:
    ```bash
    git clone https://github.com/Lokesh0336/Youtube-Ad-Blocker-By-Lokesh.git

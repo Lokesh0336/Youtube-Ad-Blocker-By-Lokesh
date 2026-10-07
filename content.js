@@ -1,3 +1,16 @@
+/* ============================================================
+ *  YouTube Adblocker By Lokesh.R
+ *  ------------------------------------------------------------
+ *  Author   : Lokesh.R
+ *  GitHub   : https://github.com/Lokesh0336
+ *  Project  : https://github.com/Lokesh0336/Youtube-Ad-Blocker-By-Lokesh
+ *  Version  : 13.0.0
+ *  License  : MIT
+ *  ------------------------------------------------------------
+ *  © 2026 Lokesh.R — All Rights Reserved
+ *  Unauthorized removal of this watermark is prohibited.
+ * ============================================================ */
+
 (function () {
     'use strict';
 
